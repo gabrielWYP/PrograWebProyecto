@@ -1,48 +1,41 @@
-const db = require('../models');
+const AuthService = require('../services/AuthService');
+const { AuthenticationError } = require('../services/errors');
 
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    // Busca el usuario por email
-    const user = await db.User.findOne({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    }
-    // Compara la contraseña (en producción deberías usar bcrypt)
-    if (user.password !== password) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    }
-    if(!user.active){
-      return res.status(401).json({ error: 'Usuario desactivado' });
-    }
-    // No envíes la contraseña al frontend
-    const { password: _, ...userData } = user.toJSON();
-    req.session.user = userData; // Guarda el usuario en la sesión
-    return res.json({ user: userData });
+    const result = await AuthService.login(email, password);
+    req.session.user = result.user;
+    return res.json(result);
   } catch (err) {
+    if (err instanceof AuthenticationError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     console.error(err);
     return res.status(500).json({ error: 'Error en el servidor' });
   }
 };
 
-// Devuelve el usuario de la sesión si está loggeado
 const me = async (req, res) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'No autenticado' });
+  try {
+    const result = AuthService.me(req.session?.user);
+    return res.json(result);
+  } catch (err) {
+    if (err instanceof AuthenticationError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    return res.status(500).json({ error: 'Error en el servidor' });
   }
-  // No envíes la contraseña al frontend
-  const { password, ...userData } = req.session.user;
-  return res.json({ user: userData });
 };
 
-const logout = (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: 'Error al cerrar sesión' });
-    }
-    res.clearCookie('connect.sid'); // El nombre puede variar según la configuración de express-session
-    return res.json({ message: 'Sesión cerrada correctamente' });
-  });
+const logout = async (req, res) => {
+  try {
+    const result = await AuthService.logout(req.session);
+    res.clearCookie('connect.sid');
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 module.exports = { login, me, logout };
