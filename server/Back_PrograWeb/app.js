@@ -6,6 +6,7 @@ const session = require('express-session');
 const logger = require('morgan');
 require('dotenv').config();
 const cors = require('cors');
+const helmet = require('helmet');
 
 const app = express();
 
@@ -47,6 +48,9 @@ const corsOptions = {
 
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+
+// Security headers via Helmet (after CORS, before routes)
+app.use(helmet());
 
 // Middlewares en orden correcto
 app.use(logger('dev'));
